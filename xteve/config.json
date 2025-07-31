@@ -4,14 +4,14 @@
     "amd64",
     "armv7"
   ],
-  "codenotary": "alexandrep.github@gmail.com",
+  "codenotary": "x",
   "description": "M3U Proxy for Plex DVR and Emby Live TV",
   "environment": {
     "XTEVE_CONF": "/data/conf",
     "XTEVE_HOME": "/data"
   },
   "host_network": true,
-  "image": "ghcr.io/alexbelgium/xteve-{arch}",
+  "image": "ghcr.io/furkangu/xteve-{arch}",
   "map": [
     "config:rw",
     "share:rw",
@@ -26,7 +26,7 @@
   },
   "slug": "xteve",
   "udev": true,
-  "url": "https://github.com/alexbelgium/hassio-addons",
+  "url": "https://github.com/furkangu/hassio-addons",
   "version": "2.5.3-2",
   "webui": "[PROTO:ssl]://[HOST]:[PORT:34400]/web"
 }
