@@ -25,6 +25,9 @@ ENV S6_CMD_WAIT_FOR_SERVICES=1 \
 # Root operations
 USER root
 
+# Install php7-fpm and su-exec
+RUN apk add --no-cache php7-fpm su-exec
+
 # Create non-root user and group
 RUN addgroup -S xteve && adduser -S xteve -G xteve
 
@@ -32,10 +35,11 @@ RUN addgroup -S xteve && adduser -S xteve -G xteve
 RUN cp -vnpr /home/xteve* /data || true
 
 # Ensure folder permissions
-RUN mkdir -p /etc/opt/xteve /tmp/xteve /config && \
-    chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config
+RUN mkdir -p /etc/opt/xteve /tmp/xteve /config /run/php && \
+    chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config /run/php && \
+    chmod -R 755 /etc/opt/xteve /tmp/xteve /config /run/php
 
-# 🔧 Fallback patch: replace geteuid with getppid in VLC (avoids root warning)
+# Fallback patch: replace geteuid with getppid in VLC (avoids root warning)
 RUN sed -i 's/geteuid/getppid/' /usr/bin/vlc || true
 
 ##################
@@ -75,7 +79,12 @@ ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templat
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_entrypoint_modif.sh" "/ha_entrypoint_modif.sh"
 RUN chmod 777 /ha_entrypoint.sh /ha_entrypoint_modif.sh && /ha_entrypoint_modif.sh && rm /ha_entrypoint_modif.sh
 
-# Drop to non-root user
+# Final CMD (php-fpm optional fallback — modify or remove if unneeded)
+# Use `su-exec` to ensure non-root PHP-FPM, if you want this running
+# alongside xteve, you may choose to add it to your `01-custom_script.sh`
+CMD ["su-exec", "xteve", "/usr/sbin/php-fpm7", "--nodaemonize", "--force-stderr"]
+
+# Set working user
 USER xteve
 
 ############
