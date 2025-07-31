@@ -1,13 +1,7 @@
 #============================#
-#  ALEXBELGIUM'S DOCKERFILE  #
+#  now its my dockerfile yarek  #
 #============================#
-#           _.------.
-#       _.-`    ('>.-`"""-.
-# '.--'`       _'`   _ .--.)
-#    -'         '-.-';`   `
-#    ' -      _.'  ``'--.
-#        '---`    .-'""`
-#               /`
+
 #=== Home Assistant Addon ===#
 
 #################
@@ -30,8 +24,10 @@ ENV S6_CMD_WAIT_FOR_SERVICES=1 \
 
 
 USER root
-
+RUN addgroup -S xteve && adduser -S xteve -G xteve
 RUN cp -vnpr /home/xteve* /data || true
+USER xteve
+
 
 ##################
 # 3 Install apps #
