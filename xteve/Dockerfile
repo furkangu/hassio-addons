@@ -38,8 +38,52 @@ RUN mkdir -p /etc/opt/xteve /tmp/xteve /config && \
     chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config && \
     chmod -R 755 /etc/opt/xteve /tmp/xteve /config
 
-# Patch VLC to run under non-root user
-RUN sed -i 's/geteuid/getppid/' /usr/bin/vlc || true
+# Enhanced VLC fixes for non-root user
+RUN if [ -f /usr/bin/vlc ]; then \
+        # Method 1: Patch the geteuid check
+        sed -i 's/geteuid/getppid/' /usr/bin/vlc && \
+        # Method 2: Create a wrapper script that bypasses root check
+        mv /usr/bin/vlc /usr/bin/vlc-real && \
+        cat > /usr/bin/vlc << 'EOF'
+#!/bin/sh
+# VLC wrapper to run as non-root
+export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
+exec /usr/bin/vlc-real --intf dummy --no-video --no-sout-video "$@"
+EOF
+        chmod +x /usr/bin/vlc; \
+    fi || true
+
+# Alternative: Create VLC wrapper that forces non-interactive mode
+RUN cat > /usr/local/bin/vlc-wrapper << 'EOF'
+#!/bin/sh
+# Enhanced VLC wrapper for xteve
+export HOME=/tmp/xteve
+export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
+export VLC_DATA_PATH=/usr/share/vlc
+
+# Create temp directory for VLC
+mkdir -p /tmp/xteve/.config/vlc
+chown xteve:xteve /tmp/xteve/.config/vlc
+
+# Run VLC with safe options for non-root
+exec /usr/bin/vlc-real \
+    --intf dummy \
+    --no-video \
+    --no-sout-video \
+    --no-audio \
+    --no-osd \
+    --no-stats \
+    --no-media-library \
+    --play-and-exit \
+    --no-loop \
+    --no-repeat \
+    --no-random \
+    --no-qt-privacy-ask \
+    --no-qt-updates-notif \
+    --config=/tmp/xteve/.config/vlc \
+    "$@"
+EOF
+RUN chmod +x /usr/local/bin/vlc-wrapper
 
 ##################
 # 3 Install apps #
@@ -87,6 +131,13 @@ RUN mkdir -p /etc/services.d/xteve
 COPY <<EOF /etc/services.d/xteve/run
 #!/usr/bin/execlineb -P
 with-contenv
+# Set VLC environment variables for non-root operation
+export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
+export HOME=/tmp/xteve
+# Create VLC config directory
+mkdir -p /tmp/xteve/.config/vlc
+chown xteve:xteve /tmp/xteve/.config/vlc
+# Run xteve as non-root user
 su-exec xteve /opt/xteve/xteve
 EOF
 RUN chmod +x /etc/services.d/xteve/run
@@ -125,6 +176,10 @@ LABEL \
 ####################
 # 7 Final Settings #
 ####################
+
+# Set environment variables for VLC non-root operation
+ENV VLC_PLUGIN_PATH=/usr/lib/vlc/plugins \
+    HOME=/tmp/xteve
 
 # Drop to xteve user (just in case)
 USER xteve
