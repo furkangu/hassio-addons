@@ -22,36 +22,44 @@ ENV S6_CMD_WAIT_FOR_SERVICES=1 \
     S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
     S6_SERVICES_GRACETIME=0
 
-
+# Root operations
 USER root
-RUN addgroup -S xteve && adduser -S xteve -G xteve
-RUN cp -vnpr /home/xteve* /data || true
-USER xteve
 
+# Create non-root user and group
+RUN addgroup -S xteve && adduser -S xteve -G xteve
+
+# Copy xteve binaries or configs if present
+RUN cp -vnpr /home/xteve* /data || true
+
+# Ensure folder permissions
+RUN mkdir -p /etc/opt/xteve /tmp/xteve /config && \
+    chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config
+
+# 🔧 Fallback patch: replace geteuid with getppid in VLC (avoids root warning)
+RUN sed -i 's/geteuid/getppid/' /usr/bin/vlc || true
 
 ##################
 # 3 Install apps #
 ##################
 
-# Copy local files
+# Copy addon files
 COPY rootfs/ /
 
-# Uses /bin for compatibility purposes
-# hadolint ignore=DL4005
+# Symlink fallback
 RUN if [ ! -f /bin/sh ] && [ -f /usr/bin/sh ]; then ln -s /usr/bin/sh /bin/sh; fi && \
     if [ ! -f /bin/bash ] && [ -f /usr/bin/bash ]; then ln -s /usr/bin/bash /bin/bash; fi
 
 # Modules
 ARG MODULES="00-banner.sh 01-custom_script.sh"
 
-# Automatic modules download
+# Automatic module install
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_automodules.sh" "/ha_automodules.sh"
 RUN chmod 744 /ha_automodules.sh && /ha_automodules.sh "$MODULES" && rm /ha_automodules.sh
 
-# Manual apps
+# Apps (manual)
 ENV PACKAGES=""
 
-# Automatic apps & bashio
+# Auto app install
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_autoapps.sh" "/ha_autoapps.sh"
 RUN chmod 744 /ha_autoapps.sh && /ha_autoapps.sh "$PACKAGES" && rm /ha_autoapps.sh
 
@@ -59,19 +67,16 @@ RUN chmod 744 /ha_autoapps.sh && /ha_autoapps.sh "$PACKAGES" && rm /ha_autoapps.
 # 4 Entrypoint #
 ################
 
-# Add entrypoint
+# Entrypoint
 ENV S6_STAGE2_HOOK=/ha_entrypoint.sh
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_entrypoint.sh" "/ha_entrypoint.sh"
 
-# Entrypoint modifications
+# Modify entrypoint
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_entrypoint_modif.sh" "/ha_entrypoint_modif.sh"
 RUN chmod 777 /ha_entrypoint.sh /ha_entrypoint_modif.sh && /ha_entrypoint_modif.sh && rm /ha_entrypoint_modif.sh
 
-#
-#WORKDIR /
-#ENTRYPOINT [ "/usr/bin/env" ]
-#CMD [ "/ha_entrypoint.sh" ]
-#SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# Drop to non-root user
+USER xteve
 
 ############
 # 5 Labels #
