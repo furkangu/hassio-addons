@@ -40,50 +40,24 @@ RUN mkdir -p /etc/opt/xteve /tmp/xteve /config && \
 
 # Enhanced VLC fixes for non-root user
 RUN if [ -f /usr/bin/vlc ]; then \
-        # Method 1: Patch the geteuid check
         sed -i 's/geteuid/getppid/' /usr/bin/vlc && \
-        # Method 2: Create a wrapper script that bypasses root check
         mv /usr/bin/vlc /usr/bin/vlc-real && \
-        cat > /usr/bin/vlc << 'EOF'
-#!/bin/sh
-# VLC wrapper to run as non-root
-export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
-exec /usr/bin/vlc-real --intf dummy --no-video --no-sout-video "$@"
-EOF
+        echo '#!/bin/sh' > /usr/bin/vlc && \
+        echo 'export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins' >> /usr/bin/vlc && \
+        echo 'exec /usr/bin/vlc-real --intf dummy --no-video --no-sout-video "$@"' >> /usr/bin/vlc && \
         chmod +x /usr/bin/vlc; \
     fi || true
 
-# Alternative: Create VLC wrapper that forces non-interactive mode
-RUN cat > /usr/local/bin/vlc-wrapper << 'EOF'
-#!/bin/sh
-# Enhanced VLC wrapper for xteve
-export HOME=/tmp/xteve
-export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
-export VLC_DATA_PATH=/usr/share/vlc
-
-# Create temp directory for VLC
-mkdir -p /tmp/xteve/.config/vlc
-chown xteve:xteve /tmp/xteve/.config/vlc
-
-# Run VLC with safe options for non-root
-exec /usr/bin/vlc-real \
-    --intf dummy \
-    --no-video \
-    --no-sout-video \
-    --no-audio \
-    --no-osd \
-    --no-stats \
-    --no-media-library \
-    --play-and-exit \
-    --no-loop \
-    --no-repeat \
-    --no-random \
-    --no-qt-privacy-ask \
-    --no-qt-updates-notif \
-    --config=/tmp/xteve/.config/vlc \
-    "$@"
-EOF
-RUN chmod +x /usr/local/bin/vlc-wrapper
+# Create VLC wrapper that forces non-interactive mode
+RUN echo '#!/bin/sh' > /usr/local/bin/vlc-wrapper && \
+    echo '# Enhanced VLC wrapper for xteve' >> /usr/local/bin/vlc-wrapper && \
+    echo 'export HOME=/tmp/xteve' >> /usr/local/bin/vlc-wrapper && \
+    echo 'export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins' >> /usr/local/bin/vlc-wrapper && \
+    echo 'export VLC_DATA_PATH=/usr/share/vlc' >> /usr/local/bin/vlc-wrapper && \
+    echo 'mkdir -p /tmp/xteve/.config/vlc' >> /usr/local/bin/vlc-wrapper && \
+    echo 'chown xteve:xteve /tmp/xteve/.config/vlc' >> /usr/local/bin/vlc-wrapper && \
+    echo 'exec /usr/bin/vlc-real --intf dummy --no-video --no-sout-video --no-audio --no-osd --no-stats --no-media-library --play-and-exit --no-loop --no-repeat --no-random --no-qt-privacy-ask --no-qt-updates-notif --config=/tmp/xteve/.config/vlc "$@"' >> /usr/local/bin/vlc-wrapper && \
+    chmod +x /usr/local/bin/vlc-wrapper
 
 ##################
 # 3 Install apps #
@@ -127,20 +101,15 @@ RUN chmod 777 /ha_entrypoint.sh /ha_entrypoint_modif.sh && /ha_entrypoint_modif.
 ####################
 
 # Add service run script that uses su-exec to drop privileges
-RUN mkdir -p /etc/services.d/xteve
-COPY <<EOF /etc/services.d/xteve/run
-#!/usr/bin/execlineb -P
-with-contenv
-# Set VLC environment variables for non-root operation
-export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
-export HOME=/tmp/xteve
-# Create VLC config directory
-mkdir -p /tmp/xteve/.config/vlc
-chown xteve:xteve /tmp/xteve/.config/vlc
-# Run xteve as non-root user
-su-exec xteve /opt/xteve/xteve
-EOF
-RUN chmod +x /etc/services.d/xteve/run
+RUN mkdir -p /etc/services.d/xteve && \
+    echo '#!/usr/bin/execlineb -P' > /etc/services.d/xteve/run && \
+    echo 'with-contenv' >> /etc/services.d/xteve/run && \
+    echo 'export VLC_PLUGIN_PATH=/usr/lib/vlc/plugins' >> /etc/services.d/xteve/run && \
+    echo 'export HOME=/tmp/xteve' >> /etc/services.d/xteve/run && \
+    echo 'mkdir -p /tmp/xteve/.config/vlc' >> /etc/services.d/xteve/run && \
+    echo 'chown xteve:xteve /tmp/xteve/.config/vlc' >> /etc/services.d/xteve/run && \
+    echo 'su-exec xteve /opt/xteve/xteve' >> /etc/services.d/xteve/run && \
+    chmod +x /etc/services.d/xteve/run
 
 ############
 # 6 Labels #
