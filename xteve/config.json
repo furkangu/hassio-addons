@@ -4,14 +4,14 @@
     "amd64",
     "armv7"
   ],
-  "codenotary": "x",
+  "codenotary": "x@x.com",
   "description": "M3U Proxy for Plex DVR and Emby Live TV",
   "environment": {
     "XTEVE_CONF": "/data/conf",
     "XTEVE_HOME": "/data"
   },
   "host_network": true,
-  "image": "ghcr.io/furkangu/xteve-{arch}",
+  "image": "ghcr.io/alexbelgium/xteve-{arch}",
   "map": [
     "config:rw",
     "share:rw",
