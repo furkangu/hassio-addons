@@ -22,24 +22,23 @@ ENV S6_CMD_WAIT_FOR_SERVICES=1 \
     S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
     S6_SERVICES_GRACETIME=0
 
-# Root operations
 USER root
 
-# Install php7-fpm and su-exec
-RUN apk add --no-cache php7-fpm su-exec
+# Install dependencies
+RUN apk add --no-cache su-exec
 
 # Create non-root user and group
 RUN addgroup -S xteve && adduser -S xteve -G xteve
 
-# Copy xteve binaries or configs if present
+# Copy xteve files if present
 RUN cp -vnpr /home/xteve* /data || true
 
-# Ensure folder permissions
-RUN mkdir -p /etc/opt/xteve /tmp/xteve /config /run/php && \
-    chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config /run/php && \
-    chmod -R 755 /etc/opt/xteve /tmp/xteve /config /run/php
+# Ensure proper ownership and access
+RUN mkdir -p /etc/opt/xteve /tmp/xteve /config && \
+    chown -R xteve:xteve /etc/opt/xteve /tmp/xteve /data /config && \
+    chmod -R 755 /etc/opt/xteve /tmp/xteve /config
 
-# Fallback patch: replace geteuid with getppid in VLC (avoids root warning)
+# Patch VLC to run under non-root user
 RUN sed -i 's/geteuid/getppid/' /usr/bin/vlc || true
 
 ##################
@@ -56,7 +55,7 @@ RUN if [ ! -f /bin/sh ] && [ -f /usr/bin/sh ]; then ln -s /usr/bin/sh /bin/sh; f
 # Modules
 ARG MODULES="00-banner.sh 01-custom_script.sh"
 
-# Automatic module install
+# Auto module install
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_automodules.sh" "/ha_automodules.sh"
 RUN chmod 744 /ha_automodules.sh && /ha_automodules.sh "$MODULES" && rm /ha_automodules.sh
 
@@ -71,24 +70,29 @@ RUN chmod 744 /ha_autoapps.sh && /ha_autoapps.sh "$PACKAGES" && rm /ha_autoapps.
 # 4 Entrypoint #
 ################
 
-# Entrypoint
+# Entry hook for HA
 ENV S6_STAGE2_HOOK=/ha_entrypoint.sh
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_entrypoint.sh" "/ha_entrypoint.sh"
 
-# Modify entrypoint
+# Patch entrypoint
 ADD "https://raw.githubusercontent.com/alexbelgium/hassio-addons/master/.templates/ha_entrypoint_modif.sh" "/ha_entrypoint_modif.sh"
 RUN chmod 777 /ha_entrypoint.sh /ha_entrypoint_modif.sh && /ha_entrypoint_modif.sh && rm /ha_entrypoint_modif.sh
 
-# Final CMD (php-fpm optional fallback — modify or remove if unneeded)
-# Use `su-exec` to ensure non-root PHP-FPM, if you want this running
-# alongside xteve, you may choose to add it to your `01-custom_script.sh`
-CMD ["su-exec", "xteve", "/usr/sbin/php-fpm7", "--nodaemonize", "--force-stderr"]
+####################
+# 5 Service script #
+####################
 
-# Set working user
-USER xteve
+# Add service run script that uses su-exec to drop privileges
+RUN mkdir -p /etc/services.d/xteve
+COPY <<EOF /etc/services.d/xteve/run
+#!/usr/bin/execlineb -P
+with-contenv
+su-exec xteve /opt/xteve/xteve
+EOF
+RUN chmod +x /etc/services.d/xteve/run
 
 ############
-# 5 Labels #
+# 6 Labels #
 ############
 
 ARG BUILD_ARCH
@@ -119,5 +123,8 @@ LABEL \
     org.opencontainers.image.version=${BUILD_VERSION}
 
 ####################
-# 6 HealthcheckNOT #
+# 7 Final Settings #
 ####################
+
+# Drop to xteve user (just in case)
+USER xteve
